@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title> Scatterplot Graph</title>
+  <style>
+    body {
+      margin: 100px auto;
+    }
+
+    svg {
+      display: block;
+      background-color: whitesmoke;
+      margin: auto;
+    }
+
+    #title {
+      font-size: 30px;
+    }
+
+    #tooltip {
+      position: absolute;
+      width: 200px;
+      height: 200px;
+      font-size: 15px;
+      background-color: lightsteelblue;
+      text-align: center;
+      padding: auto;
+      visibility: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="my_dataviz"></div>
+  <script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+    const dataURL = 'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/cyclist-data.json'
+    d3.json(dataURL)
+      .then(data => {
+
+        const customTimeFormat = d3.timeParse('%M:%S')
+
+        const width = 1400
+        const height = 700
+        const padding = 50
+
+        const svg = d3.select("#my_dataviz")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding)
+          .attr('id', 'title')
+          .attr('text-anchor', 'middle')
+          .text("Doping in Professional Bicycle Racing")
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding + 30)
+          .style('font-size', '25px')
+          .attr('text-anchor', 'middle')
+          .text("35 Fastest times up Alpe d'Huez")
+
+        const years = data.map(obj => obj.Year)
+
+        const xScale = d3.scaleLinear()
+          .domain([d3.min(years) - 1, d3.max(years)])
+          .range([padding, width - padding])
+
+        const xAxis = d3.axisBottom(xScale)
+          .tickFormat(d3.format('d'))
+
+        svg.append('g')
+          .attr("transform", `translate(0, ${height - padding})`)
+          .attr("id", "x-axis")
+          .call(xAxis)
+
+        const time = data.map(obj => customTimeFormat(obj.Time))
+
+        const yScale = d3.scaleTime()
+          .domain([d3.min(time), d3.max(time)])
+          .range([padding, height - padding])
+
+        const yAxis = d3.axisLeft(yScale)
+          .tickFormat(d3.timeFormat('%M:%S'))
+
+        svg.append('g')
+          .attr("transform", `translate(${padding}, 0)`)
+          .attr("id", "y-axis")
+          .call(yAxis)
+
+        svg.append('text')
+          .attr("x", padding)
+          .attr("y", padding)
+          .attr('transform', 'translate(30, 300) rotate(-90)')
+          .text('Time in Minutes')
+
+        const tooltip = d3.select("#my_dataviz")
+          .append('div')
+          .attr('id', 'tooltip')
+
+        svg.selectAll("circle")
+          .data(data)
+          .enter()
+          .append('circle')
+          .attr("cx", d => xScale(d.Year))
+          .attr("cy", d => yScale(customTimeFormat(d.Time)))
+          .attr('r', 5)
+          .attr("data-xvalue", d => d.Year)
+          .attr("data-yvalue", d => customTimeFormat(d.Time))
+          .attr('fill', d => d.Doping === '' ? 'orange' : 'navy')
+          .attr('class', 'dot')
+          .on('mouseover', (_, d) => {
+            tooltip.style("visibility", "visible")
+              .html(`
+              <p>${d.Name} ${d.Nationality}<p>
+              <p>Year: ${d.Year} Time:${d.Time}<p>
+              <p>${d.Doping || ''}</p>
+                `)
+              .style('left', `${event.pageX}px`)
+              .style('top', `${event.pageY}px`)
+              .attr('data-year', d.Year)
+          })
+          .on('mouseout', () => {
+            tooltip.style("visibility", "hidden")
+          })
+
+        const legend = svg.append('g')
+          .attr('id', 'legend')
+
+        legend.selectAll('rect')
+          .data(['navy', 'orange'])
+          .enter()
+          .append('rect')
+          .attr('x', d => width - padding)
+          .attr('y', (d, i) => height / 2 + i * 30)
+          .attr('width', 20)
+          .attr('height', 20)
+          .attr('fill', d => d)
+
+        legend.selectAll('text')
+          .data(['Riders with doping allegations', 'No doping allegations'])
+          .enter()
+          .append('text')
+          .attr('x', d => width - padding - 10)
+          .attr('y', (d, i) => height / 2 + i * 30 + 15)
+          .text(d => d)
+          .attr('text-anchor', 'end');
+
+      })
+      .catch(error => {
+        console.error('Error fetching data:', error);
+      });
+
+  </script>
+</body>
+
+</html>
