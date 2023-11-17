@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title> Scatterplot Graph</title>
+  <style>
+    body {
+      margin: 100px auto;
+    }
+
+    svg {
+      display: block;
+      background-color: whitesmoke;
+      margin: auto;
+    }
+
+    #title {
+      font-size: 30px;
+    }
+
+    #tooltip {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      font-size: 15px;
+      border-radius: 15px;
+      background-color: lightsteelblue;
+      text-align: center;
+      padding: auto;
+      visibility: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="my_dataviz"></div>
+  <script type="module">
+    import * as d3 from "https://cdn.jsdelivr.net/npm/d3@7/+esm";
+
+    const dataURL = 'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json'
+    d3.json(dataURL)
+      .then(data => {
+
+
+        const base = data.baseTemperature
+        const temps = data.monthlyVariance
+        const month_names = [
+          "January", "February", "March", "April",
+          "May", "June", "July", "August",
+          "September", "October", "November", "December"
+        ]
+
+        const years = temps.map(obj => obj.year)
+        const months = temps.map(obj => month_names[obj.month - 1])
+        const variances = temps.map(obj => obj.variance)
+        const minTemp = base + d3.min(variances)
+        const maxTemp = base + d3.max(variances)
+
+        const colors = ['blue', 'lightblue', 'gray', 'burlywood', 'goldenrod',
+          'darkorange', 'orangered', 'red', 'darkred']
+        const width = 1400
+        const height = 700
+        const padding = 60
+        const ceil_with = (width - padding * 2) / (2015 - 1753)
+        const ceil_height = (height - padding * 2) / month_names.length
+
+
+        const toOneDecimal = n => parseFloat(n.toFixed(1))
+
+        const svg = d3.select("#my_dataviz")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height + padding)
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding / 2)
+          .attr('id', 'title')
+          .attr('text-anchor', 'middle')
+          .text("Monthly Global Land-Surface Temperature")
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding / 2 + 25)
+          .style('font-size', '25px')
+          .attr('id', 'description')
+          .attr('text-anchor', 'middle')
+          .text("1753 - 2015: base temperature 8.66℃")
+
+        const xScale = d3.scaleLinear()
+          .domain([d3.min(years), d3.max(years)])
+          .range([padding, width - padding])
+
+        const xAxis = d3.axisBottom(xScale)
+          .tickValues(d3.range(d3.min(years) + (10 - d3.min(years) % 10), d3.max(years), 10))
+          .tickFormat(d3.format('d'))
+
+        svg.append('g')
+          .attr("transform", `translate(0, ${height - padding})`)
+          .attr("id", "x-axis")
+          .call(xAxis)
+
+        const yScale = d3.scaleBand()
+          .domain(months)
+          .range([padding, height - padding])
+
+        const yAxis = d3.axisLeft(yScale)
+
+        svg.append('g')
+          .attr("transform", `translate(${padding}, 0)`)
+          .attr("id", "y-axis")
+          .call(yAxis)
+
+        svg.append('text')
+          .attr('transform', 'translate(20, 300) rotate(-90)')
+          .text('Months')
+
+        svg.append('text')
+          .attr("x", width / 2)
+          .attr("y", height - 20)
+          .text('Years')
+
+        const tooltip = d3.select("#my_dataviz")
+          .append('div')
+          .attr('id', 'tooltip')
+
+        const colorScale = d3.scaleQuantize()
+          .domain([minTemp, maxTemp])
+          .range(colors)
+
+        const tempScale = d3.scaleLinear()
+          .domain([minTemp, maxTemp])
+          .range([padding, width / 5])
+
+        console.log(minTemp, maxTemp)
+        const tempXAxis = d3.axisBottom(tempScale)
+          .tickValues(d3.range(minTemp, maxTemp + 1, (maxTemp - minTemp) / colors.length))
+
+        const legend = svg.append('g')
+          .attr('id', 'legend')
+
+        legend.append('g')
+          .attr("transform", `translate(0, ${height + padding - 50})`)
+          .attr("id", "temp-axis")
+          .call(tempXAxis)
+
+        const square_length = ((width / 5) - padding) / colors.length
+        legend.selectAll('rect')
+          .data(colors)
+          .enter()
+          .append('rect')
+          .attr('x', (_, i) => padding + square_length * i)
+          .attr('y', height + padding - 50 - square_length - 1)
+          .attr('width', square_length)
+          .attr('height', square_length)
+          .attr('fill', d => d)
+
+        svg.selectAll("rect")
+          .data(temps)
+          .enter()
+          .append('rect')
+          .attr("x", d => xScale(d.year))
+          .attr("y", d => yScale(month_names[d.month - 1]))
+          .attr('width', ceil_with)
+          .attr('height', ceil_height)
+          .attr("data-month", d => d.month - 1)
+          .attr("data-year", d => d.year)
+          .attr("data-temp", d => base + d.variance)
+          .attr('fill', d => colorScale(base + d.variance))
+          .attr('class', 'cell')
+          .on('mouseover', (_, d) => {
+            tooltip.style("visibility", "visible")
+              .html(`
+              <p>${d.year} - ${month_names[d.month - 1]}</p>
+              <p>${toOneDecimal((base + d.variance))}℃</p>
+              <p>${toOneDecimal(d.variance)}℃</p>
+              `)
+              .style('left', `${event.pageX}px`)
+              .style('top', `${event.pageY}px`)
+              .attr('data-year', d.year)
+          })
+          .on('mouseout', () => {
+            tooltip.style("visibility", "hidden")
+          })
+
+      })
+      .catch(error => {
+        console.error('Error fetching data:', error);
+      });
+
+  </script>
+</body>
+
+</html>
