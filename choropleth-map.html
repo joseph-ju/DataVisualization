@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>D3.js Map from TopoJSON Data</title>
+  <script src="https://d3js.org/d3.v5.min.js"></script>
+  <script src="https://unpkg.com/topojson@3"></script>
+  <style>
+    body {
+      margin: 50px auto;
+    }
+
+    svg {
+      display: block;
+      background-color: whitesmoke;
+      margin: auto;
+    }
+
+    #title {
+      font-size: 40px;
+      font-weight: bolder;
+      letter-spacing: 2px;
+    }
+
+    #description {
+      font-size: 20px
+    }
+
+    #tooltip {
+      position: absolute;
+      width: 200px;
+      height: 50px;
+      font-size: 15px;
+      border-radius: 15px;
+      background-color: lightsteelblue;
+      text-align: center;
+      padding: auto;
+      visibility: hidden;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="my_dataviz"></div>
+  <script>
+
+    const countiesURL = 'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/counties.json'
+    const educationURL = 'https://cdn.freecodecamp.org/testable-projects-fcc/data/choropleth_map/for_user_education.json'
+
+    Promise.all([d3.json(countiesURL),
+    d3.json(educationURL)
+    ]).then(([topology, education]) => {
+
+      const width = 1400
+      const height = 800
+      const padding = 100
+
+      const fips2county = {}
+
+      education.forEach(
+        d => fips2county[d.fips] = d
+      )
+
+      topology.objects.counties.geometries.forEach(geo => {
+        geo.properties = fips2county[geo.id]
+      })
+
+      const svg = d3.select("#my_dataviz")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height)
+
+      svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', padding / 2)
+        .attr('id', 'title')
+        .attr('text-anchor', 'middle')
+        .text("United States Educational Attainment")
+
+      svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', padding / 2 + 50)
+        .attr('id', 'description')
+        .attr('text-anchor', 'middle')
+        .text("Percentage of adults age 25 and older with a bachelor's degree or higher (2010-2014)")
+
+      svg.append('text')
+        .attr("x", width * 0.65)
+        .attr("y", height - padding + 40)
+        .text('Source: ')
+        .append('a')
+        .attr('href', 'https://www.ers.usda.gov/data-products/county-level-data-sets/download-data.aspx')
+        .attr("target", "_blank")
+        .attr("fill", 'blue')
+        .text('USDA Economic Research Service')
+
+      const path = d3.geoPath()
+      const percentages = education.map(obj => obj.bachelorsOrHigher)
+      const minPerc = parseInt(d3.min(percentages))
+      const maxPerc = parseInt(d3.max(percentages))
+
+      const colorScale = d3.scaleLinear()
+        .domain([minPerc, maxPerc])
+        .range(["#e0ffe0", "#006400"])
+
+      const percScale = d3.scaleLinear()
+        .domain([minPerc, maxPerc])
+        .range([padding, width / 5])
+
+      const percXAxis = d3.axisBottom(percScale)
+        .tickValues(d3.range(minPerc, maxPerc, Math.floor((maxPerc - minPerc) / 8)))
+        .tickFormat(d => `${d}%`)
+
+      const legend = svg.append('g')
+        .attr('id', 'legend')
+
+      const example = [3, 12, 21, 30, 39, 48, 56, 63, 70]
+
+      legend.selectAll('rect')
+        .data(example)
+        .enter()
+        .append('rect')
+        .attr('x', (_, i) => `${width / 2 + 150 + 20 * i} `)
+        .attr('y', 150 - 12)
+        .attr('width', 20)
+        .attr('height', 10)
+        .attr('fill', d => colorScale(d))
+
+      const tooltip = d3.select("#my_dataviz")
+        .append('div')
+        .attr('id', 'tooltip')
+
+      svg.selectAll('path')
+        .data(topojson.feature(topology, topology.objects.counties).features)
+        .enter().append('path')
+        .attr('d', path)
+        .attr('stroke', 'white')
+        .attr('stroke-width', 0.5)
+        .attr('fill', d => colorScale(d.properties.bachelorsOrHigher))
+        .attr('class', 'county')
+        .attr('data-fips', d => d.properties.fips)
+        .attr('data-education', d => d.properties.bachelorsOrHigher)
+        .attr('transform', 'translate(200,100)')
+        .on('mouseover', () => {
+          const county = fips2county[event.target.getAttribute("data-fips")]
+          tooltip.style("visibility", "visible")
+            .html(`
+              <p>${county.area_name}, ${county.state}: ${county.bachelorsOrHigher}%</p>
+              `)
+            .style('left', `${event.pageX}px`)
+            .style('top', `${event.pageY}px`)
+            .attr('data-education', county.bachelorsOrHigher)
+        })
+        .on('mouseout', () => {
+          tooltip.style("visibility", "hidden")
+        })
+
+      legend.append('g')
+        .attr("transform", `translate(${width / 2 + 50}, 150)`)
+        .attr("id", "temp-axis")
+        .call(percXAxis)
+      // !!! REMINDER !!!
+      // BUG 
+      // If I put this snipped code above the `selectAll('path')`
+      // the first path will not render 
+
+    }).catch(error => {
+      console.error('Error loading JSON files: ', error);
+    })
+
+  </script>
+</body>
+
+</html>
