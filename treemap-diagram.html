@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Treemap Diagram</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      margin: 10px auto;
+    }
+
+    svg {
+      display: block;
+      background-color: whitesmoke;
+      padding-top: 5px;
+      margin: auto;
+    }
+
+    #title {
+      font-size: 40px;
+      font-weight: bolder;
+    }
+
+    #description {
+      font-size: 20px
+    }
+
+    #tooltip {
+      position: absolute;
+      width: 200px;
+      height: 150px;
+      font-size: 15px;
+      border-radius: 15px;
+      background-color: lightsteelblue;
+      text-align: center;
+      padding: auto;
+      visibility: hidden;
+    }
+
+    .links {
+      text-decoration: none;
+      font-size: 20px;
+    }
+
+    .tile {}
+  </style>
+</head>
+
+<body>
+  <div id="my_dataviz"></div>
+
+  <script>
+    const getDataParameter = () => {
+      const queryString = window.location.search
+      const urlParams = new URLSearchParams(queryString)
+      const data = urlParams.get('data') ?? 'videogames'
+      return data
+    }
+
+    target = getDataParameter()
+
+    const targets = {
+      videogames: {
+        url: 'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/video-game-sales-data.json',
+        title: 'Video Game Sales',
+        description: 'Top 100 Most Sold Video Games Grouped by Platform'
+      },
+      movies: {
+        url: 'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/movie-data.json',
+        title: 'Movie Sales',
+        description: 'Top 100 Highest Grossing Movies Grouped By Genre'
+      },
+      kickstarter: {
+        url: 'https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/kickstarter-funding-data.json',
+        title: 'Kickstarter Pledges',
+        description: 'Top 100 Most Pledged Kickstarter Campaigns Grouped By Category'
+      }
+    }
+
+    d3.json(targets[target].url)
+      .then(data => {
+
+        const width = 1400
+        const height = 900
+        const padding = 100
+        const treemap_width = 960
+        const treemap_height = 600
+
+        const svg = d3.select("#my_dataviz")
+          .append("svg")
+          .attr("width", width)
+          .attr("height", height)
+
+        const links = [
+          ["Video Game Data Set", "videogames"],
+          ["Movies Data Set", "movies"],
+          ["Kickstarted Data Set", "kickstarter"]
+        ]
+
+        svg.selectAll('.links')
+          .data(links)
+          .enter()
+          .append('text')
+          .attr("x", (_, i) => 200 * i + width / 3)
+          .attr("y", 20)
+          .append('a')
+          .attr('href', d => `/treemap-diagram.html?data=${d[1]}`)
+          .attr("fill", 'blue')
+          .text(d => d[0])
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding / 2 + 15)
+          .attr('id', 'title')
+          .attr('text-anchor', 'middle')
+          .text(targets[target].title)
+
+        svg.append('text')
+          .attr('x', width / 2)
+          .attr('y', padding / 2 + 40)
+          .attr('id', 'description')
+          .attr('text-anchor', 'middle')
+          .text(targets[target].description)
+
+        const root = d3.hierarchy(data)
+          .sum(d => d.value)
+
+        const treemap = d3.treemap()
+          .size([treemap_width, treemap_height])
+          (root)
+
+        const genres = data.children.map(
+          item => item.name
+        )
+
+        const colors = genres
+          .reduce((colors, _, i) => {
+            const hue = (i * (360 / genres.length)) % 360;
+            colors.push(`hsl(${hue}, 80%, 50%)`)
+            return colors
+          }, [])
+
+        const color = d3.scaleOrdinal()
+          .domain(genres)
+          .range(colors)
+
+        const tooltip = d3.select("#my_dataviz")
+          .append('div')
+          .attr('id', 'tooltip')
+
+        svg.selectAll("rect")
+          .data(root.leaves())
+          .enter()
+          .append("rect")
+          .attr("x", d => d.x0)
+          .attr("y", d => d.y0)
+          .attr("width", d => d.x1 - d.x0)
+          .attr("height", d => d.y1 - d.y0)
+          .attr('data-name', d => d.data.name)
+          .attr('data-category', d => d.data.category)
+          .attr('data-value', d => d.value)
+          .attr("fill", d => color(d.parent.data.name))
+          .attr("stroke", "white")
+          .attr('class', 'tile')
+          .attr('transform', 'translate(240,120)')
+          .on('mouseover', (_, d) => {
+            tooltip.style("visibility", "visible")
+              .html(`
+              <p>Name: ${d.data.name}</p>
+              <p>Category: ${d.data.category}</p>
+              <p>Value: ${d.value}</p>
+              `)
+              .style('left', `${event.pageX}px`)
+              .style('top', `${event.pageY}px`)
+              .attr('data-value', d.value)
+          })
+          .on('mouseout', () => {
+            tooltip.style("visibility", "hidden")
+          })
+
+        svg.selectAll("text")
+          .data(root.descendants())
+          .enter()
+          .append("text")
+          .attr("x", d => d.x0 + 5)
+          .attr("y", d => d.y0 + 15)
+          .attr("font-size", "10px")
+          .attr("fill", "black")
+          .text(d => d.data.name)
+          .attr('transform', 'translate(240,120)')
+
+        const legend = svg.append('g')
+          .attr('id', 'legend')
+
+        const cols = Math.floor(Math.sqrt(genres.length)) + 1
+
+        legend.selectAll('rect')
+          .data(genres)
+          .enter()
+          .append('rect')
+          .attr('x', (_, i) => `${width / 3 + (i % cols) * 150}`)
+          .attr('y', (_, i) => `${height - 150 + (Math.floor(i / cols)) * 30} `)
+          .attr('width', 20)
+          .attr('height', 20)
+          .attr('fill', d => color(d))
+          .attr('class', 'legend-item')
+
+        legend.selectAll('text')
+          .data(genres)
+          .enter()
+          .append("text")
+          .attr("x", (_, i) => `${width / 3 + (i % cols) * 150 + 30}`)
+          .attr("y", (_, i) => `${height - 150 + (Math.floor(i / cols)) * 30 + 15}`)
+          .attr("font-size", "20px")
+          .attr("fill", "black")
+          .text(d => d)
+      })
+
+      .catch(error => {
+        console.error('Error loading JSON files: ', error)
+      })
+  </script>
+</body>
+
+</html>
